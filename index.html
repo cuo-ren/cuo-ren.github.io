@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>JSBridge 测试工具</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6fa; --card: #fff; --text: #202533; --muted: #687386;
+      --line: #e2e7ef; --accent: #356df3; --accent-soft: #eaf0ff;
+      --good: #168653; --bad: #c43d45; --code: #f0f2f6;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #11151d; --card: #1b2230; --text: #edf1f8; --muted: #a1adbf;
+        --line: #303a4b; --accent: #82a5ff; --accent-soft: #263653;
+        --good: #55d49a; --bad: #ff7c83; --code: #111722;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    main { width: min(760px, 100%); margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { margin: 0 0 7px; font-size: 24px; }
+    .sub { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 14px 0; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    h2 { font-size: 17px; margin: 0 0 12px; }
+    h3 { font-size: 14px; margin: 15px 0 7px; }
+    label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 6px; }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px;
+      background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+    }
+    textarea { min-height: 88px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    button {
+      border: 0; border-radius: 9px; padding: 10px 14px; background: var(--accent);
+      color: white; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: var(--accent-soft); color: var(--text); }
+    button.danger { background: #a93842; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #999; }
+    .dot.good { background: var(--good); } .dot.bad { background: var(--bad); }
+    pre {
+      margin: 8px 0 0; padding: 12px; border-radius: 9px; background: var(--code);
+      white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+      min-height: 48px; max-height: 340px; overflow: auto;
+    }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .log-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .tag { font-size: 11px; color: var(--muted); border:1px solid var(--line); padding:3px 7px; border-radius:99px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>JSBridge 测试工具</h1>
+  <div class="sub">在目标 App 的 WebView 中打开本页面，然后调用原生接口并查看回调。页面不会伪造响应，也不会把请求发送到服务器。</div>
+
+  <section class="card">
+    <div class="row">
+      <h2>Bridge 状态</h2>
+      <span class="status"><i id="bridgeDot" class="dot"></i><span id="bridgeStatus">检测中…</span></span>
+    </div>
+    <div class="muted">检测对象：<code>window.jsBridge</code>，并检查 bind / unbind / postNotification 方法。</div>
+    <div class="actions">
+      <button class="secondary" onclick="checkBridge()">重新检测</button>
+      <button class="secondary" onclick="showBridgeInfo()">查看 Bridge 信息</button>
+    </div>
+    <pre id="bridgeInfo">尚未检测</pre>
+  </section>
+
+  <section class="card">
+    <h2>CLIENT_DEVICE_ID</h2>
+    <div class="muted">获取客户端设备标识。请求参数默认为空对象。</div>
+    <label for="devicePayload">请求参数（JSON）</label>
+    <textarea id="devicePayload">{}</textarea>
+    <div class="actions"><button onclick="callBridge('CLIENT_DEVICE_ID', 'devicePayload')">调用并等待响应</button></div>
+    <h3>响应</h3><pre id="result_CLIENT_DEVICE_ID">尚无响应</pre>
+  </section>
+
+  <section class="card">
+    <h2>CLIENT_FORM_SIGN</h2>
+    <div class="muted">表单签名接口。当前只预填已知参数 typeFlag；具体取值可自行修改。</div>
+    <label for="signPayload">请求参数（JSON）</label>
+    <textarea id="signPayload">{"typeFlag":0}</textarea>
+    <div class="actions"><button onclick="callBridge('CLIENT_FORM_SIGN', 'signPayload')">调用并等待响应</button></div>
+    <h3>响应</h3><pre id="result_CLIENT_FORM_SIGN">尚无响应</pre>
+  </section>
+
+  <section class="card">
+    <h2>CLIENT_CHECK_URL_TYPE</h2>
+    <div class="muted">URL 类型检查接口。由于目前没有确认它的参数结构，默认发送空对象；可按需编辑。</div>
+    <label for="urlPayload">请求参数（JSON）</label>
+    <textarea id="urlPayload">{}</textarea>
+    <div class="actions"><button onclick="callBridge('CLIENT_CHECK_URL_TYPE', 'urlPayload')">调用并等待响应</button></div>
+    <h3>响应</h3><pre id="result_CLIENT_CHECK_URL_TYPE">尚无响应</pre>
+  </section>
+
+  <section class="card">
+    <h2>自定义接口</h2>
+    <label for="customName">通知名称</label>
+    <input id="customName" value="CLIENT_LOGIN_STATUS" spellcheck="false">
+    <label for="customPayload">请求参数（JSON）</label>
+    <textarea id="customPayload">{}</textarea>
+    <div class="actions"><button onclick="callCustom()">调用并等待响应</button></div>
+    <h3>响应</h3><pre id="result_custom">尚无响应</pre>
+  </section>
+
+  <section class="card">
+    <div class="log-head">
+      <h2 style="margin:0">调用日志</h2>
+      <button class="secondary" onclick="clearLogs()">清空日志</button>
+    </div>
+    <pre id="logs">页面已加载。</pre>
+  </section>
+</main>
+
+<script>
+(function () {
+  const pending = new Map();
+
+  function timestamp() {
+    return new Date().toLocaleTimeString();
+  }
+
+  function log(message, data) {
+    const box = document.getElementById('logs');
+    const line = `[${timestamp()}] ${message}`;
+    box.textContent = (line + (data === undefined ? '' : '\n' + format(data)) + '\n\n' + box.textContent).slice(0, 16000);
+  }
+
+  function format(value) {
+    try { return JSON.stringify(value, null, 2); }
+    catch (_) { return String(value); }
+  }
+
+  function bridge() {
+    return window.jsBridge;
+  }
+
+  window.checkBridge = function () {
+    const b = bridge();
+    const checks = {
+      'window.jsBridge': !!b,
+      'bind': !!(b && typeof b.bind === 'function'),
+      'unbind': !!(b && typeof b.unbind === 'function'),
+      'postNotification': !!(b && typeof b.postNotification === 'function')
+    };
+    const ok = Object.values(checks).every(Boolean);
+    document.getElementById('bridgeDot').className = 'dot ' + (ok ? 'good' : 'bad');
+    document.getElementById('bridgeStatus').textContent = ok ? '接口可用' : '接口不完整或不存在';
+    document.getElementById('bridgeInfo').textContent = format(checks);
+    log('Bridge 检测', checks);
+    return checks;
+  };
+
+  window.showBridgeInfo = function () {
+    const b = bridge();
+    if (!b) {
+      document.getElementById('bridgeInfo').textContent = 'window.jsBridge 不存在';
+      return;
+    }
+    const info = {
+      type: typeof b,
+      ownProperties: Object.keys(b),
+      methods: ['bind', 'unbind', 'postNotification', 'trigger', 'setDevice']
+        .reduce((out, key) => {
+          out[key] = typeof b[key];
+          return out;
+        }, {})
+    };
+    document.getElementById('bridgeInfo').textContent = format(info);
+    log('Bridge 信息', info);
+  };
+
+  window.callBridge = function (name, payloadElementId, resultId) {
+    const b = bridge();
+    const outputId = resultId || ('result_' + name);
+    const output = document.getElementById(outputId);
+
+    if (!b || typeof b.bind !== 'function' ||
+        typeof b.unbind !== 'function' ||
+        typeof b.postNotification !== 'function') {
+      const message = 'JSBridge 不存在或缺少 bind / unbind / postNotification 方法';
+      if (output) output.textContent = message;
+      log('调用失败：' + name, message);
+      checkBridge();
+      return;
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(document.getElementById(payloadElementId).value);
+      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new Error('请求参数必须是 JSON 对象');
+      }
+    } catch (error) {
+      if (output) output.textContent = 'JSON 参数错误：' + error.message;
+      log('参数解析失败：' + name, error.message);
+      return;
+    }
+
+    if (pending.has(name)) {
+      clearTimeout(pending.get(name).timer);
+      pending.delete(name);
+    }
+
+    if (output) output.textContent = '已发送请求，等待原生响应…';
+    log('发送请求：' + name, payload);
+
+    try {
+      // 该 Bridge 的响应通过同名 bind 回调接收。
+      b.unbind(name);
+      b.bind(name, function (response) {
+        if (pending.has(name)) {
+          clearTimeout(pending.get(name).timer);
+          pending.delete(name);
+        }
+        if (output) output.textContent = format(response);
+        log('收到响应：' + name, response);
+      });
+
+      b.postNotification(name, payload);
+
+      const timer = setTimeout(function () {
+        if (pending.has(name)) {
+          pending.delete(name);
+          if (output) output.textContent = '等待超时：尚未收到该接口的回调。';
+          log('等待超时：' + name);
+        }
+      }, 15000);
+      pending.set(name, { timer: timer });
+    } catch (error) {
+      if (output) output.textContent = '调用异常：' + (error && error.stack ? error.stack : error);
+      log('调用异常：' + name, String(error));
+    }
+  };
+
+  window.callCustom = function () {
+    const name = document.getElementById('customName').value.trim();
+    if (!name) {
+      document.getElementById('result_custom').textContent = '请填写通知名称';
+      return;
+    }
+    callBridge(name, 'customPayload', 'result_custom');
+  };
+
+  window.clearLogs = function () {
+    document.getElementById('logs').textContent = '日志已清空。';
+  };
+
+  // 页面启动后检测一次；部分 App 的 Bridge 注入可能稍晚，因此保留手动重试按钮。
+  checkBridge();
+  setTimeout(checkBridge, 800);
+})();
+</script>
+</body>
+</html>
